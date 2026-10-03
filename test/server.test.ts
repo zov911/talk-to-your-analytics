@@ -25,6 +25,15 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<s
   return block.text;
 }
 
+test('lists all tools as read-only, plus prompts', async () => {
+  const { tools } = await client.listTools();
+  const names = tools.map(t => t.name).sort();
+  assert.deepEqual(names, ['check_tracking_health', 'detect_anomalies', 'explain_change', 'get_overview', 'hubspot_funnel', 'run_ga4_report', 'search_console_report']);
+  assert.ok(tools.every(t => t.annotations?.readOnlyHint === true));
+  const { prompts } = await client.listPrompts();
+  assert.equal(prompts.length, 3);
+});
+
 test('get_overview covers all three sources', async () => {
   const t = await call('get_overview');
   for (const s of ['GA4 sessions', 'Organic clicks', 'HubSpot new contacts']) assert.match(t, new RegExp(s));
@@ -46,6 +55,13 @@ test('check_tracking_health flags the page that stopped converting', async () =>
   const t = await call('check_tracking_health');
   assert.match(t, /stopped converting/);
   assert.match(t, /\/demo \(mobile\)/);
+});
+
+test('detect_anomalies, reports and funnel run', async () => {
+  assert.match(await call('detect_anomalies'), /Trend \(last 28 days\)/);
+  assert.match(await call('search_console_report', { view: 'opportunities' }), /Striking distance/);
+  assert.match(await call('run_ga4_report', { dimensions: ['deviceCategory'], metrics: ['sessions'] }), /mobile/);
+  assert.match(await call('hubspot_funnel'), /PAID_SEARCH/);
 });
 
 test('invalid input returns a tool error, not a crash', async () => {
